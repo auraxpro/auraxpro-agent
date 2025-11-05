@@ -1,28 +1,66 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { sendMessage } from '@/lib/openaiServer';
+import { NextRequest } from 'next/server';
+import OpenAI from 'openai';
+
+if (!process.env.OPENAI_API_KEY) {
+  throw new Error('OPENAI_API_KEY is not set in server environment');
+}
+
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
+
+const SYSTEM_BASE = `You are AuraXPro AI — a helpful, professional assistant.
+
+You answer questions about AuraXPro's services, stack, process, and general dev topics.
+
+If the user asks about AuraXPro, prioritize the knowledge provided as truth.
+
+Be concise. Provide steps or examples when useful.`;
 
 export async function POST(req: NextRequest) {
   try {
-    const { message, conversationHistory } = await req.json();
+    const { messages, kbContext } = await req.json();
 
-    if (!message || typeof message !== 'string') {
-      return NextResponse.json(
-        { error: 'Message is required' },
-        { status: 400 }
-      );
+    if (!messages || !Array.isArray(messages) || messages.length === 0) {
+      return new Response(JSON.stringify({ error: 'Messages array is required' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      });
     }
 
-    // Validate conversation history format
-    if (!Array.isArray(conversationHistory)) {
-      return NextResponse.json(
-        { error: 'Invalid conversation history' },
-        { status: 400 }
-      );
-    }
+    const stream = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      stream: true,
+      messages: [
+        { role: 'system', content: SYSTEM_BASE + (kbContext ? `\n\n=== AuraXPro Knowledge ===\n${kbContext}\n==========================` : '') },
+        ...messages.map((msg: any) => ({ role: msg.role, content: msg.content }))
+      ]
+    });
 
-    const response = await sendMessage(message, conversationHistory);
+    const encoder = new TextEncoder();
+    const readable = new ReadableStream({
+      async start(controller) {
+        try {
+          for await (const part of stream) {
+            const token = part.choices?.[0]?.delta?.content || '';
+            if (token) {
+              controller.enqueue(encoder.encode(token));
+            }
+          }
+        } catch (error) {
+          controller.error(error);
+        } finally {
+          controller.close();
+        }
+      }
+    });
 
-    return NextResponse.json({ response });
+    return new Response(readable, {
+      headers: {
+        'Content-Type': 'text/plain; charset=utf-8',
+        'Cache-Control': 'no-store'
+      }
+    });
   } catch (error: any) {
     console.error('OpenAI API Error:', error);
     
@@ -45,10 +83,10 @@ export async function POST(req: NextRequest) {
       errorMessage = error.message;
     }
 
-    return NextResponse.json(
-      { error: errorMessage },
-      { status: statusCode }
-    );
+    return new Response(JSON.stringify({ error: errorMessage }), {
+      status: statusCode,
+      headers: { 'Content-Type': 'application/json' }
+    });
   }
 }
 

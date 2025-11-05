@@ -1,0 +1,71 @@
+{
+  "projects": [
+    {
+      "id": "project-1",
+      "name": "E-Commerce Platform",
+      "description": "Full-stack e-commerce solution with custom cart, payment integration, and admin dashboard",
+      "stack": ["Next.js", "TypeScript", "Tailwind CSS", "Stripe", "PostgreSQL", "Prisma"],
+      "experience": "Built a scalable e-commerce platform handling 10k+ daily users with real-time inventory management and secure payment processing",
+      "challenges": [
+        "Implementing real-time inventory synchronization across multiple warehouses",
+        "Optimizing checkout flow to reduce cart abandonment",
+        "Building admin dashboard with complex filtering and analytics"
+      ],
+      "developmentFlow": [
+        "Week 1-2: Discovery and wireframing",
+        "Week 3-4: Database design and API setup",
+        "Week 5-8: Frontend development with Next.js",
+        "Week 9-10: Payment integration and testing",
+        "Week 11-12: Admin dashboard and deployment"
+      ],
+      "budget": "$25,000 - $35,000",
+      "timeline": "12 weeks",
+      "status": "Completed"
+    },
+    {
+      "id": "project-2",
+      "name": "3D Product Configurator",
+      "description": "Interactive 3D product customizer for furniture with real-time rendering and AR preview",
+      "stack": ["React Three Fiber", "Next.js", "Blender", "GLB Pipeline", "WebGL"],
+      "experience": "Developed immersive 3D product configurator allowing customers to customize furniture with real-time visual feedback and AR preview capabilities",
+      "challenges": [
+        "Optimizing 3D model loading and rendering performance",
+        "Implementing seamless material/texture swapping",
+        "Building AR preview functionality for mobile devices"
+      ],
+      "developmentFlow": [
+        "Week 1-2: 3D model preparation and optimization",
+        "Week 3-5: R3F integration and scene setup",
+        "Week 6-7: Customization controls and UI",
+        "Week 8-9: AR preview implementation",
+        "Week 10: Performance optimization and testing"
+      ],
+      "budget": "$30,000 - $40,000",
+      "timeline": "10 weeks",
+      "status": "Completed"
+    },
+    {
+      "id": "project-3",
+      "name": "AI-Powered Analytics Dashboard",
+      "description": "Business intelligence dashboard with AI insights and predictive analytics",
+      "stack": ["Next.js", "Python", "FastAPI", "PostgreSQL", "OpenAI API", "Chart.js"],
+      "experience": "Created intelligent analytics platform that processes large datasets and provides AI-powered insights and trend predictions",
+      "challenges": [
+        "Processing and visualizing large datasets efficiently",
+        "Implementing real-time data updates",
+        "Integrating AI models for predictive analytics"
+      ],
+      "developmentFlow": [
+        "Week 1: Data pipeline architecture design",
+        "Week 2-3: Backend API with FastAPI",
+        "Week 4-6: Frontend dashboard with Next.js",
+        "Week 7-8: AI integration and model training",
+        "Week 9: Testing and optimization"
+      ],
+      "budget": "$35,000 - $45,000",
+      "timeline": "9 weeks",
+      "status": "In Progress"
+    }
+  ]
+}
+
