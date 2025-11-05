@@ -1,0 +1,28 @@
+{
+  "brand": "AuraXPro",
+  "site": "https://auraxpro.com",
+  "services": [
+    "Full-stack web dev (Next.js, Nest.js, Django)",
+    "3D/R3F configurators & virtual tours",
+    "Shopify/WordPress custom dev",
+    "Scraping & data pipelines (Python/FastAPI)"
+  ],
+  "core_stack": ["Next.js", "Tailwind", "Node/Nest.js", "PostgreSQL", "React Three Fiber", "Stripe/Shopify"],
+  "strengths": [
+    "Performance-first builds (CWV)",
+    "Clean state mgmt & scalable arch",
+    "3D/interactive UI expertise",
+    "AI-assisted workflows (RAG later)"
+  ],
+  "process": [
+    "Discovery → Tech plan",
+    "MVP in 4–6 weeks (typical)",
+    "Iterate with weekly demos"
+  ],
+  "faqs": [
+    { "q": "Do you handle CMS?", "a": "Yes — Strapi, Payload, WP; pick per use case." },
+    { "q": "Do you do 3D product configurators?", "a": "Yes, with Three.js/R3F; GLB pipelines supported." }
+  ],
+  "tone": "Professional, concise, helpful. Avoid overselling; give clear next steps."
+}
+
