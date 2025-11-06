@@ -2,9 +2,18 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { loadKB, kbToContext } from '@/lib/kb';
-import { loadHistory, saveHistory, clearHistory, ChatMessage } from '@/lib/store';
+import {
+  ChatMessage,
+  saveMessage,
+  loadConversation,
+  clearConversation,
+  listConversationsWithMetadata,
+  getRecentMessages,
+  migrateFromLocalStorage,
+} from '@/lib/conversation-db';
 import Image from 'next/image';
-import { ChevronLeftIcon, ChevronRightIcon, MailIcon } from 'lucide-react';
+import { ChevronLeftIcon, ChevronRightIcon, TrashIcon, UserIcon } from 'lucide-react';
+import Link from 'next/link';
 
 interface Project {
   id: string;
@@ -19,6 +28,13 @@ interface Project {
   status: string;
 }
 
+interface ConversationListItem {
+  conversationId: string;
+  messageCount: number;
+  lastActivity: number;
+  firstMessage?: string;
+}
+
 export default function Chat() {
   const [kbCtx, setKbCtx] = useState<string>('');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -27,12 +43,18 @@ export default function Chat() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+  const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
+  const [conversations, setConversations] = useState<ConversationListItem[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  // Initialize: Load KB, projects, and run migration
   useEffect(() => {
-    setMessages(loadHistory());
     (async () => {
+      // Run migration from localStorage if needed
+      await migrateFromLocalStorage();
+      
+      // Load knowledge base
       const kb = await loadKB();
       setKbCtx(kbToContext(kb));
       
@@ -44,13 +66,40 @@ export default function Chat() {
       } catch (error) {
         console.error('Failed to load projects:', error);
       }
+      
+      // Load conversations list
+      await refreshConversations();
     })();
   }, []);
 
+  // Load messages when conversationId changes
   useEffect(() => {
-    saveHistory(messages);
+    if (currentConversationId) {
+      loadConversation(currentConversationId).then(setMessages);
+    } else {
+      setMessages([]);
+    }
+  }, [currentConversationId]);
+
+  // Auto-scroll to bottom when messages change
+  useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  const refreshConversations = async () => {
+    const convos = await listConversationsWithMetadata();
+    setConversations(convos);
+  };
+
+  const getConversationId = (): string => {
+    if (selectedProject) {
+      return `project-${selectedProject.id}`;
+    }
+    if (currentConversationId) {
+      return currentConversationId;
+    }
+    return `conversation-${Date.now()}`;
+  };
 
   useEffect(() => {
     if (textareaRef.current) {
@@ -59,17 +108,51 @@ export default function Chat() {
     }
   }, [input]);
 
-  const startNewChat = () => {
-    clearHistory();
+  const startNewChat = async () => {
     setMessages([]);
     setSelectedProject(null);
+    setCurrentConversationId(`conversation-${Date.now()}`);
+    await refreshConversations();
   };
 
-  const handleProjectSelect = (project: Project) => {
+  const handleProjectSelect = async (project: Project) => {
     setSelectedProject(project);
-    // Clear messages when switching projects to start fresh context
-    setMessages([]);
-    clearHistory();
+    const conversationId = `project-${project.id}`;
+    setCurrentConversationId(conversationId);
+    // Load existing messages for this project
+    const existingMessages = await loadConversation(conversationId);
+    setMessages(existingMessages);
+    await refreshConversations();
+  };
+
+  const handleConversationSelect = async (conversationId: string) => {
+    setCurrentConversationId(conversationId);
+    // Clear project selection if switching to a non-project conversation
+    if (!conversationId.startsWith('project-')) {
+      setSelectedProject(null);
+    } else {
+      // Try to find matching project
+      const projectId = conversationId.replace('project-', '');
+      const project = projects.find(p => p.id === projectId);
+      if (project) {
+        setSelectedProject(project);
+      }
+    }
+    const existingMessages = await loadConversation(conversationId);
+    setMessages(existingMessages);
+  };
+
+  const handleDeleteConversation = async (conversationId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (confirm('Delete this conversation?')) {
+      await clearConversation(conversationId);
+      if (currentConversationId === conversationId) {
+        setMessages([]);
+        setCurrentConversationId(null);
+        setSelectedProject(null);
+      }
+      await refreshConversations();
+    }
   };
 
   const getProjectContext = (project: Project | null): string => {
@@ -92,8 +175,23 @@ Status: ${project.status}
   async function ask() {
     if (!input.trim() || loading) return;
 
+    // Ensure we have a conversationId
+    const conversationId = getConversationId();
+    if (!currentConversationId) {
+      setCurrentConversationId(conversationId);
+    }
+
     const userMessage = input.trim();
-    const next = [...messages, { role: 'user', content: userMessage, ts: Date.now() } as ChatMessage];
+    const userMsg: ChatMessage = {
+      conversationId: conversationId,
+      role: 'user',
+      content: userMessage,
+      ts: Date.now(),
+    };
+    
+    // Save user message immediately
+    await saveMessage(userMsg);
+    const next = [...messages, userMsg];
     setMessages(next);
     setInput('');
     setLoading(true);
@@ -102,13 +200,17 @@ Status: ${project.status}
       const projectContext = getProjectContext(selectedProject);
       const fullContext = kbCtx + (projectContext ? '\n\n' + projectContext : '');
 
+      // Get recent messages for context (last 50)
+      const recentMessages = await getRecentMessages(conversationId, 50);
+      const messagesForAPI = recentMessages.map(({ role, content }) => ({ role, content }));
+
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          messages: next.map(({ role, content }) => ({ role, content })),
+          messages: messagesForAPI,
           kbContext: fullContext
         })
       });
@@ -132,7 +234,13 @@ Status: ${project.status}
       const decoder = new TextDecoder();
       let acc = '';
 
-      setMessages(m => [...m, { role: 'assistant', content: '' }]);
+      const assistantMsg: ChatMessage = {
+        conversationId: conversationId,
+        role: 'assistant',
+        content: '',
+        ts: Date.now(),
+      };
+      setMessages(m => [...m, assistantMsg]);
 
       while (true) {
         const { value, done } = await reader.read();
@@ -142,10 +250,22 @@ Status: ${project.status}
 
         setMessages(m => {
           const copy = [...m];
-          copy[copy.length - 1] = { role: 'assistant', content: acc };
+          copy[copy.length - 1] = {
+            ...assistantMsg,
+            content: acc,
+          };
           return copy;
         });
       }
+
+      // Save complete assistant message
+      await saveMessage({
+        conversationId: conversationId,
+        role: 'assistant',
+        content: acc,
+        ts: Date.now(),
+      });
+      await refreshConversations();
     } catch (error: any) {
       let errorMessage = 'Something went wrong. Please try again.';
 
@@ -153,10 +273,14 @@ Status: ${project.status}
         errorMessage = error.message;
       }
 
-      setMessages(m => [...m, {
+      const errorMsg: ChatMessage = {
+        conversationId: conversationId,
         role: 'assistant',
-        content: `❌ **Error:** ${errorMessage}\n\nIf this is a quota or billing issue, please check your OpenAI account settings.`
-      }]);
+        content: `❌ **Error:** ${errorMessage}\n\nIf this is a quota or billing issue, please check your OpenAI account settings.`,
+        ts: Date.now(),
+      };
+      setMessages(m => [...m, errorMsg]);
+      await saveMessage(errorMsg);
     } finally {
       setLoading(false);
     }
@@ -172,8 +296,22 @@ Status: ${project.status}
   const handleFAQClick = async (question: string) => {
     if (loading) return;
     
+    // Ensure we have a conversationId
+    const conversationId = getConversationId();
+    if (!currentConversationId) {
+      setCurrentConversationId(conversationId);
+    }
+    
     const userMessage = question.trim();
-    const next = [...messages, { role: 'user' as const, content: userMessage, ts: Date.now() } as ChatMessage];
+    const userMsg: ChatMessage = {
+      conversationId: conversationId,
+      role: 'user',
+      content: userMessage,
+      ts: Date.now(),
+    };
+    
+    await saveMessage(userMsg);
+    const next = [...messages, userMsg];
     setMessages(next);
     setInput('');
     setLoading(true);
@@ -182,11 +320,15 @@ Status: ${project.status}
       const projectContext = getProjectContext(selectedProject);
       const fullContext = kbCtx + (projectContext ? '\n\n' + projectContext : '');
 
+      // Get recent messages for context
+      const recentMessages = await getRecentMessages(conversationId, 50);
+      const messagesForAPI = recentMessages.map(({ role, content }) => ({ role, content }));
+
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          messages: next.map(({ role, content }) => ({ role, content })),
+          messages: messagesForAPI,
           kbContext: fullContext
         })
       });
@@ -208,7 +350,13 @@ Status: ${project.status}
       const decoder = new TextDecoder();
       let acc = '';
 
-      setMessages(m => [...m, { role: 'assistant' as const, content: '' }]);
+      const assistantMsg: ChatMessage = {
+        conversationId: conversationId,
+        role: 'assistant',
+        content: '',
+        ts: Date.now(),
+      };
+      setMessages(m => [...m, assistantMsg]);
 
       while (true) {
         const { value, done } = await reader.read();
@@ -216,16 +364,32 @@ Status: ${project.status}
         acc += decoder.decode(value, { stream: true });
         setMessages(m => {
           const copy = [...m];
-          copy[copy.length - 1] = { role: 'assistant' as const, content: acc };
+          copy[copy.length - 1] = {
+            ...assistantMsg,
+            content: acc,
+          };
           return copy;
         });
       }
+
+      // Save complete assistant message
+      await saveMessage({
+        conversationId: conversationId,
+        role: 'assistant',
+        content: acc,
+        ts: Date.now(),
+      });
+      await refreshConversations();
     } catch (error: any) {
       const errorMessage = error?.message || 'Something went wrong. Please try again.';
-      setMessages(m => [...m, {
-        role: 'assistant' as const,
-        content: `❌ **Error:** ${errorMessage}\n\nIf this is a quota or billing issue, please check your OpenAI account settings.`
-      }]);
+      const errorMsg: ChatMessage = {
+        conversationId: conversationId,
+        role: 'assistant',
+        content: `❌ **Error:** ${errorMessage}\n\nIf this is a quota or billing issue, please check your OpenAI account settings.`,
+        ts: Date.now(),
+      };
+      setMessages(m => [...m, errorMsg]);
+      await saveMessage(errorMsg);
     } finally {
       setLoading(false);
     }
@@ -307,16 +471,50 @@ Status: ${project.status}
             )}
 
             {/* Recent Chats */}
-            {messages.length > 0 && (
+            {conversations.length > 0 && (
               <div className="p-3 border-t border-gray-700">
-                <h3 className="text-xs font-semibold text-gray-400 uppercase mb-2 px-2">Chats</h3>
-                <div className="space-y-1">
-                  <button className="w-full flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-gray-800 transition-colors text-sm text-gray-300">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                    </svg>
-                    <span className="truncate">Current conversation</span>
-                  </button>
+                <h3 className="text-xs font-semibold text-gray-400 uppercase mb-2 px-2">Conversations</h3>
+                <div className="space-y-1 max-h-96 overflow-y-auto">
+                  {conversations.map((conv) => {
+                    const isActive = currentConversationId === conv.conversationId;
+                    const displayName = conv.firstMessage 
+                      ? conv.firstMessage.substring(0, 30) + (conv.firstMessage.length > 30 ? '...' : '')
+                      : conv.conversationId.startsWith('project-')
+                        ? projects.find(p => `project-${p.id}` === conv.conversationId)?.name || 'Project Chat'
+                        : 'New Chat';
+                    const lastActivity = new Date(conv.lastActivity).toLocaleDateString();
+                    
+                    return (
+                      <div
+                        key={conv.conversationId}
+                        className={`group flex items-center gap-2 px-2 py-2 rounded-lg transition-colors ${
+                          isActive
+                            ? 'bg-gray-800 text-white'
+                            : 'text-gray-300 hover:bg-gray-800'
+                        }`}
+                      >
+                        <button
+                          onClick={() => handleConversationSelect(conv.conversationId)}
+                          className="flex-1 flex items-center gap-3 text-sm text-left min-w-0"
+                        >
+                          <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                          </svg>
+                          <div className="flex-1 min-w-0">
+                            <div className="truncate">{displayName}</div>
+                            <div className="text-xs text-gray-500">{lastActivity} • {conv.messageCount} msgs</div>
+                          </div>
+                        </button>
+                        <button
+                          onClick={(e) => handleDeleteConversation(conv.conversationId, e)}
+                          className="opacity-0 group-hover:opacity-100 p-1 hover:bg-gray-700 rounded transition-opacity"
+                          title="Delete conversation"
+                        >
+                          <TrashIcon className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -345,14 +543,9 @@ Status: ${project.status}
                 </svg>
               </button>
             )}
-            <div className="flex items-center gap-2">
+            <Link href="https://www.auraxpro.com" className="flex items-center gap-2">
               <Image src="/brand.png" alt="Logo" width={128} height={51} />
-              {selectedProject && (
-                <div className="ml-2 px-2 py-1 rounded bg-gray-800 text-xs text-gray-300">
-                  {selectedProject.name}
-                </div>
-              )}
-            </div>
+            </Link>
           </div>
         </header>
 
@@ -390,9 +583,7 @@ Status: ${project.status}
                   <div key={i} className={`flex gap-4 ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                     {m.role === 'assistant' && (
                       <div className="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center flex-shrink-0">
-                        <svg className="w-5 h-5 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                        </svg>
+                        <Image src="/logo.png" alt="Logo" width={24} height={24} />
                       </div>
                     )}
                     <div className={`flex-1 ${m.role === 'user' ? 'flex justify-end' : ''}`}>
@@ -405,9 +596,7 @@ Status: ${project.status}
                     </div>
                     {m.role === 'user' && (
                       <div className="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center flex-shrink-0">
-                        <svg className="w-5 h-5 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                        </svg>
+                        <UserIcon className="w-5 h-5 text-gray-300" />
                       </div>
                     )}
                   </div>

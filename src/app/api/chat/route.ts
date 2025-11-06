@@ -28,12 +28,15 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    // Limit messages to last 50 for context efficiency
+    const recentMessages = messages.slice(-50);
+    
     const stream = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
+      model: 'gpt-4o',
       stream: true,
       messages: [
         { role: 'system', content: SYSTEM_BASE + (kbContext ? `\n\n=== AuraXPro Knowledge ===\n${kbContext}\n==========================` : '') },
-        ...messages.map((msg: any) => ({ role: msg.role, content: msg.content }))
+        ...recentMessages.map((msg: any) => ({ role: msg.role, content: msg.content }))
       ]
     });
 
