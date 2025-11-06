@@ -14,18 +14,35 @@ import {
 import Image from 'next/image';
 import { ChevronLeftIcon, ChevronRightIcon, TrashIcon, UserIcon } from 'lucide-react';
 import Link from 'next/link';
+import ReactMarkdown from 'react-markdown';
 
 interface Project {
-  id: string;
+  project_id: string;
   name: string;
-  description: string;
-  stack: string[];
-  experience: string;
-  challenges: string[];
-  developmentFlow: string[];
-  budget: string;
-  timeline: string;
+  slug: string;
+  category: string;
+  client_name: string;
   status: string;
+  start_date: string;
+  budget: string;
+  team_members: string[];
+  frontend_stack: string[];
+  backend_stack: string[];
+  integrations: string[];
+  deployment: string;
+  goal_summary: string;
+  core_features: string[];
+  target_users: string;
+  unique_value: string;
+  challenges: string[];
+  solutions: string[];
+  experience?: string;
+  lessons_learned: string;
+  communication_tools: string[];
+  update_frequency: string;
+  conversation_id: string;
+  tags: string[];
+  ai_context_note: string;
 }
 
 interface ConversationListItem {
@@ -58,13 +75,22 @@ export default function Chat() {
       const kb = await loadKB();
       setKbCtx(kbToContext(kb));
       
-      // Load projects
+      // Load experience/projects
       try {
-        const res = await fetch('/projects.json');
+        const res = await fetch('/experience.json');
         const data = await res.json();
-        setProjects(data.projects || []);
+        setProjects(Array.isArray(data) ? data : []);
       } catch (error) {
-        console.error('Failed to load projects:', error);
+        console.error('Failed to load experience data:', error);
+        // Fallback to projects.json if experience.json fails
+        try {
+          const res = await fetch('/projects.json');
+          const data = await res.json();
+          // Transform old format to new format if needed
+          setProjects(data.projects || []);
+        } catch (fallbackError) {
+          console.error('Failed to load projects:', fallbackError);
+        }
       }
       
       // Load conversations list
@@ -93,7 +119,8 @@ export default function Chat() {
 
   const getConversationId = (): string => {
     if (selectedProject) {
-      return `project-${selectedProject.id}`;
+      // Use conversation_id from experience.json if available, otherwise generate from project_id
+      return selectedProject.conversation_id || `project-${selectedProject.project_id}`;
     }
     if (currentConversationId) {
       return currentConversationId;
@@ -117,26 +144,138 @@ export default function Chat() {
 
   const handleProjectSelect = async (project: Project) => {
     setSelectedProject(project);
-    const conversationId = `project-${project.id}`;
+    // Use conversation_id from experience.json if available
+    const conversationId = project.conversation_id || `project-${project.project_id}`;
     setCurrentConversationId(conversationId);
     // Load existing messages for this project
     const existingMessages = await loadConversation(conversationId);
     setMessages(existingMessages);
     await refreshConversations();
+    
+    // If this is a new conversation (no existing messages), auto-start with initial message
+    if (existingMessages.length === 0) {
+      const initialMessage = "Could you explain about this project in more detail, As I am a new client, I want to know about this project.";
+      
+      // Create and save user message
+      const userMsg: ChatMessage = {
+        conversationId: conversationId,
+        role: 'user',
+        content: initialMessage,
+        ts: Date.now(),
+      };
+      
+      await saveMessage(userMsg);
+      setMessages([userMsg]);
+      setLoading(true);
+
+      try {
+        const projectContext = getProjectContext(project);
+        const fullContext = kbCtx + (projectContext ? '\n\n' + projectContext : '');
+
+        // Get recent messages for context (should just be the user message)
+        const recentMessages = await getRecentMessages(conversationId, 50);
+        const messagesForAPI = recentMessages.map(({ role, content }) => ({ role, content }));
+
+        const res = await fetch('/api/chat', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            messages: messagesForAPI,
+            kbContext: fullContext
+          })
+        });
+
+        if (!res.ok) {
+          let errorMessage = 'Failed to get response';
+          try {
+            const error = await res.json();
+            errorMessage = error.error || errorMessage;
+          } catch {
+            errorMessage = await res.text().catch(() => errorMessage);
+          }
+          throw new Error(errorMessage);
+        }
+
+        if (!res.body) {
+          throw new Error('No response body');
+        }
+
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let acc = '';
+
+        const assistantMsg: ChatMessage = {
+          conversationId: conversationId,
+          role: 'assistant',
+          content: '',
+          ts: Date.now(),
+        };
+        setMessages(m => [...m, assistantMsg]);
+
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+
+          acc += decoder.decode(value, { stream: true });
+
+          setMessages(m => {
+            const copy = [...m];
+            copy[copy.length - 1] = {
+              ...assistantMsg,
+              content: acc,
+            };
+            return copy;
+          });
+        }
+
+        // Save complete assistant message
+        await saveMessage({
+          conversationId: conversationId,
+          role: 'assistant',
+          content: acc,
+          ts: Date.now(),
+        });
+        await refreshConversations();
+      } catch (error: any) {
+        let errorMessage = 'Something went wrong. Please try again.';
+
+        if (error.message) {
+          errorMessage = error.message;
+        }
+
+        const errorMsg: ChatMessage = {
+          conversationId: conversationId,
+          role: 'assistant',
+          content: `❌ **Error:** ${errorMessage}\n\nIf this is a quota or billing issue, please check your OpenAI account settings.`,
+          ts: Date.now(),
+        };
+        setMessages(m => [...m, errorMsg]);
+        await saveMessage(errorMsg);
+      } finally {
+        setLoading(false);
+      }
+    }
   };
 
   const handleConversationSelect = async (conversationId: string) => {
     setCurrentConversationId(conversationId);
-    // Clear project selection if switching to a non-project conversation
-    if (!conversationId.startsWith('project-')) {
-      setSelectedProject(null);
-    } else {
-      // Try to find matching project
+    // Try to find matching project by conversation_id
+    const project = projects.find(p => p.conversation_id === conversationId);
+    if (project) {
+      setSelectedProject(project);
+    } else if (conversationId.startsWith('project-')) {
+      // Fallback: try to find by project_id
       const projectId = conversationId.replace('project-', '');
-      const project = projects.find(p => p.id === projectId);
-      if (project) {
-        setSelectedProject(project);
+      const foundProject = projects.find(p => p.project_id === projectId);
+      if (foundProject) {
+        setSelectedProject(foundProject);
+      } else {
+        setSelectedProject(null);
       }
+    } else {
+      setSelectedProject(null);
     }
     const existingMessages = await loadConversation(conversationId);
     setMessages(existingMessages);
@@ -158,17 +297,46 @@ export default function Chat() {
   const getProjectContext = (project: Project | null): string => {
     if (!project) return '';
     
+    const allStack = [...(project.frontend_stack || []), ...(project.backend_stack || [])];
+    const stackDisplay = allStack.length > 0 ? allStack.join(', ') : 'N/A';
+    
     return `
-=== Project Context: ${project.name} ===
-Description: ${project.description}
-Stack: ${project.stack.join(', ')}
-Experience: ${project.experience}
-Challenges: ${project.challenges.join('; ')}
-Development Flow: ${project.developmentFlow.join(' → ')}
-Budget: ${project.budget}
-Timeline: ${project.timeline}
+Project Name: ${project.name}
+Category: ${project.category}
+Client: ${project.client_name}
 Status: ${project.status}
-==========================
+Start Date: ${project.start_date}
+Budget: ${project.budget}
+
+Goal: ${project.goal_summary}
+
+Experience: ${project.experience || 'N/A'}
+
+Team Members: ${project.team_members?.join(', ') || 'N/A'}
+Frontend Stack: ${project.frontend_stack?.join(', ') || 'N/A'}
+Backend Stack: ${project.backend_stack?.join(', ') || 'N/A'}
+Integrations: ${project.integrations?.join(', ') || 'N/A'}
+Deployment: ${project.deployment || 'N/A'}
+
+Core Features:
+${project.core_features?.map(f => `- ${f}`).join('\n') || 'N/A'}
+
+Target Users: ${project.target_users || 'N/A'}
+Unique Value: ${project.unique_value || 'N/A'}
+
+Challenges:
+${project.challenges?.map(c => `- ${c}`).join('\n') || 'N/A'}
+
+Solutions:
+${project.solutions?.map(s => `- ${s}`).join('\n') || 'N/A'}
+
+Lessons Learned: ${project.lessons_learned || 'N/A'}
+
+Communication: ${project.communication_tools?.join(', ') || 'N/A'}
+Update Frequency: ${project.update_frequency || 'N/A'}
+Tags: ${project.tags?.join(', ') || 'N/A'}
+
+AI Context Note: ${project.ai_context_note || 'N/A'}
 `;
   };
 
@@ -447,10 +615,10 @@ Status: ${project.status}
                 <div className="space-y-1">
                   {projects.map((project) => (
                     <button
-                      key={project.id}
+                      key={project.project_id}
                       onClick={() => handleProjectSelect(project)}
                       className={`w-full flex items-center gap-3 px-2 py-2 rounded-lg transition-colors text-sm ${
-                        selectedProject?.id === project.id
+                        selectedProject?.project_id === project.project_id
                           ? 'bg-gray-800 text-white'
                           : 'text-gray-300 hover:bg-gray-800'
                       }`}
@@ -459,7 +627,7 @@ Status: ${project.status}
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
                       </svg>
                       <span className="truncate">{project.name}</span>
-                      {selectedProject?.id === project.id && (
+                      {selectedProject?.project_id === project.project_id && (
                         <svg className="w-3 h-3 ml-auto flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                           <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                         </svg>
@@ -479,9 +647,18 @@ Status: ${project.status}
                     const isActive = currentConversationId === conv.conversationId;
                     const displayName = conv.firstMessage 
                       ? conv.firstMessage.substring(0, 30) + (conv.firstMessage.length > 30 ? '...' : '')
-                      : conv.conversationId.startsWith('project-')
-                        ? projects.find(p => `project-${p.id}` === conv.conversationId)?.name || 'Project Chat'
-                        : 'New Chat';
+                      : (() => {
+                          // Try to find project by conversation_id first
+                          const project = projects.find(p => p.conversation_id === conv.conversationId);
+                          if (project) return project.name;
+                          // Fallback to project- prefix matching
+                          if (conv.conversationId.startsWith('project-')) {
+                            const projectId = conv.conversationId.replace('project-', '');
+                            const foundProject = projects.find(p => p.project_id === projectId);
+                            return foundProject?.name || 'Project Chat';
+                          }
+                          return 'New Chat';
+                        })();
                     const lastActivity = new Date(conv.lastActivity).toLocaleDateString();
                     
                     return (
@@ -591,7 +768,28 @@ Status: ${project.status}
                         ? 'bg-white text-gray-900'
                         : 'bg-gray-800 text-gray-100'
                         }`}>
-                        <div className="whitespace-pre-wrap break-words">{m.content}</div>
+                        {m.role === 'assistant' ? (
+                          <div className="break-words">
+                            <ReactMarkdown
+                              components={{
+                                p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
+                                strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
+                                ul: ({ children }) => <ul className="list-disc list-inside mb-2 space-y-1">{children}</ul>,
+                                ol: ({ children }) => <ol className="list-decimal list-inside mb-2 space-y-1">{children}</ol>,
+                                li: ({ children }) => <li className="ml-4">{children}</li>,
+                                h1: ({ children }) => <h1 className="text-xl font-bold mb-2 mt-2 first:mt-0">{children}</h1>,
+                                h2: ({ children }) => <h2 className="text-lg font-bold mb-2 mt-2 first:mt-0">{children}</h2>,
+                                h3: ({ children }) => <h3 className="text-base font-bold mb-2 mt-2 first:mt-0">{children}</h3>,
+                                code: ({ children }) => <code className="bg-gray-700 px-1.5 py-0.5 rounded text-sm font-mono">{children}</code>,
+                                pre: ({ children }) => <pre className="bg-gray-700 p-3 rounded mb-2 overflow-x-auto">{children}</pre>,
+                              }}
+                            >
+                              {m.content}
+                            </ReactMarkdown>
+                          </div>
+                        ) : (
+                          <div className="whitespace-pre-wrap break-words">{m.content}</div>
+                        )}
                       </div>
                     </div>
                     {m.role === 'user' && (

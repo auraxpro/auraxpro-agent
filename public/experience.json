@@ -1,0 +1,102 @@
+[
+    {
+        "project_id": "proj-001",
+        "name": "VR Room Planner",
+        "slug": "vr-room-planner",
+        "category": "3D Configurator",
+        "client_name": "Aroomy Inc.",
+        "status": "in_progress",
+        "start_date": "2025-02-01",
+        "budget": "$35,000",
+        "team_members": ["Pavadip", "Weiying", "Charles"],
+        "frontend_stack": ["Next.js", "TailwindCSS", "React Three Fiber", "Zustand"],
+        "backend_stack": ["Java Spring Boot", "MySQL", "AWS S3"],
+        "integrations": ["Shopify API", "KaeDim 3D API"],
+        "deployment": "AWS EC2 + Vercel",
+        "goal_summary": "Build a 2D-to-3D floor planner that allows users to visualize and design interiors interactively.",
+        "core_features": [
+          "2D Sketch Editor (Fabric.js)",
+          "3D Rendering (React Three Fiber)",
+          "AI Furniture Detection",
+          "Subscription Plans"
+        ],
+        "target_users": "Interior designers and real estate clients",
+        "unique_value": "AI-enhanced rendering and faster scene load times",
+        "challenges": [
+          "3D lighting synchronization",
+          "Texture color mismatch",
+          "Complex scene performance"
+        ],
+        "solutions": [
+          "Introduced tone mapping and physically correct lighting",
+          "Baked textures in Blender and reused via GLB",
+          "Implemented state synchronization using Zustand"
+        ],
+        "experience": "Developed a comprehensive 2D-to-3D room planning platform that enables interior designers and real estate professionals to create interactive floor plans. The project involved building a sophisticated 2D sketch editor using Fabric.js, integrating React Three Fiber for real-time 3D rendering, and implementing AI-powered furniture detection. Successfully optimized 3D scene performance by 30% through GLB compression techniques and dynamic texture loading. Implemented state management with Zustand for seamless synchronization between 2D and 3D views. The platform handles complex lighting scenarios, texture mapping, and real-time user interactions while maintaining smooth performance across different devices.",
+        "lessons_learned": "Optimized GLB compression and dynamic texture loading improved performance by 30%. Key learnings include: (1) Baking textures in Blender significantly reduces runtime texture processing, (2) Tone mapping and physically correct lighting create more realistic renders, (3) State synchronization between 2D and 3D views requires careful architecture, (4) GLB optimization is crucial for web-based 3D applications.",
+        "communication_tools": ["Telegram", "Notion", "Zoom"],
+        "update_frequency": "Weekly demo reviews",
+        "conversation_id": "project-vr-room-planner",
+        "tags": ["3D", "Next.js", "AI", "Room Planner"],
+        "ai_context_note": "Prioritize 3D rendering performance, Fabric.js synchronization, and user interactivity.",
+        "demo_url": "https://vr-room-planner.vercel.app/",
+        "code_url": "https://github.com/auraxpro/vr-room-planner",
+        "documentation_url": "https://docs.auraxpro.com/vr-room-planner",
+        "live_url": "https://vr-room-planner.vercel.app/"
+    },
+    {
+        "project_id": "proj-002",
+        "name": "AuraXPro AI Agent",
+        "slug": "auraxpro-ai-agent",
+        "category": "AI Assistant",
+        "client_name": "AuraXPro",
+        "status": "completed",
+        "start_date": "2025-01-15",
+        "budget": "Internal Project",
+        "team_members": ["Development Team"],
+        "frontend_stack": ["Next.js 15", "TypeScript", "TailwindCSS", "React", "React Markdown"],
+        "backend_stack": ["Next.js API Routes", "OpenAI API"],
+        "integrations": ["OpenAI GPT-4o", "IndexedDB (idb)"],
+        "deployment": "Vercel",
+        "goal_summary": "Build a ChatGPT-style conversational AI assistant that helps clients and collaborators learn about AuraXPro's services, technology stack, and experience. The agent should be fully frontend-only with local data persistence, supporting multiple conversation threads and project-based context switching.",
+        "core_features": [
+            "Multi-conversation support with IndexedDB persistence",
+            "Project-based context switching",
+            "Real-time streaming responses",
+            "Markdown rendering for AI responses",
+            "Knowledge base integration (auraxpro-kb.json)",
+            "Experience data integration (experience.json)",
+            "Auto-start conversations for new projects",
+            "Conversation sidebar with metadata"
+        ],
+        "target_users": "Clients, collaborators, and internal team members",
+        "unique_value": "Fully client-side architecture with secure server-side API key handling, local IndexedDB persistence, and intelligent project context injection for personalized responses.",
+        "challenges": [
+            "Migrating from localStorage to IndexedDB for better scalability",
+            "Implementing multi-conversation management with conversationId",
+            "Ensuring API key security while maintaining good UX",
+            "Handling real-time streaming responses smoothly",
+            "Integrating project context dynamically into AI prompts"
+        ],
+        "solutions": [
+            "Implemented IndexedDB using idb package with structured schema and conversationId indexing",
+            "Created conversation-db.ts with comprehensive CRUD operations for message management",
+            "Used Next.js API routes to keep OpenAI API key server-side only",
+            "Implemented ReadableStream for efficient real-time response streaming",
+            "Built dynamic context injection system that combines knowledge base and project-specific data",
+            "Added auto-migration from localStorage to IndexedDB for seamless upgrade"
+        ],
+        "experience": "Developed a comprehensive ChatGPT-style AI assistant from scratch using Next.js 15 and TypeScript. The project involved building a sophisticated chat interface with real-time streaming, implementing IndexedDB for local data persistence to support unlimited conversation storage, and creating a multi-conversation management system. Successfully migrated from localStorage to IndexedDB to handle larger datasets efficiently. Implemented project-based context switching that allows the AI to provide personalized responses based on selected project data. Built a secure architecture where OpenAI API keys are protected server-side while maintaining fast client-side performance. Integrated knowledge base and experience data to provide accurate, context-aware responses about AuraXPro's services and projects. The platform features markdown rendering, conversation sidebar with metadata, and automatic conversation initialization for new projects.",
+        "lessons_learned": "Key learnings include: (1) IndexedDB provides much better scalability than localStorage for conversation data, (2) Server-side API routes are essential for API key security in Next.js applications, (3) Real-time streaming significantly improves perceived performance, (4) Structured conversationId-based storage enables powerful multi-threaded conversation management, (5) Dynamic context injection allows for personalized AI responses without hardcoding, (6) Auto-migration from old storage systems ensures smooth user experience during upgrades.",
+        "communication_tools": ["GitHub", "Vercel"],
+        "update_frequency": "Continuous development",
+        "conversation_id": "project-auraxpro-ai-agent",
+        "tags": ["AI", "Next.js", "TypeScript", "ChatGPT", "IndexedDB", "OpenAI"],
+        "ai_context_note": "This is the AI agent itself. Focus on its architecture, features, and how it helps users learn about AuraXPro. Emphasize the secure, client-side architecture and local persistence capabilities.",
+        "demo_url": "https://ai-agent.auraxpro.com/",
+        "code_url": "https://github.com/auraxpro/auraxpro-agent",
+        "documentation_url": "https://ai-agent.auraxpro.com/",
+        "live_url": "https://ai-agent.auraxpro.com/"
+    }
+]
+
