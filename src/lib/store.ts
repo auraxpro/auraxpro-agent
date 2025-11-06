@@ -1,4 +1,7 @@
 // src/lib/store.ts
+// ⚠️ DEPRECATED: This file is deprecated in favor of IndexedDB-based storage.
+// See src/lib/conversation-db.ts for the new implementation.
+// This file is kept for migration purposes only.
 
 export type ChatMessage = { role: 'user' | 'assistant' | 'system'; content: string; ts?: number };
 
