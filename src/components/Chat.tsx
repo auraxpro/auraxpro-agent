@@ -12,7 +12,7 @@ import {
   migrateFromLocalStorage,
 } from '@/lib/conversation-db';
 import Image from 'next/image';
-import { ChevronLeftIcon, ChevronRightIcon, TrashIcon, UserIcon } from 'lucide-react';
+import { BotIcon, ChevronLeftIcon, ChevronRightIcon, TrashIcon, UserIcon } from 'lucide-react';
 import Link from 'next/link';
 import ReactMarkdown from 'react-markdown';
 
@@ -817,7 +817,7 @@ AI Context Note: ${project.ai_context_note || 'N/A'}
                   <article key={i} className={`flex gap-2 md:gap-4 ${m.role === 'user' ? 'justify-end' : 'justify-start'}`} role={m.role === 'user' ? 'user-message' : 'assistant-message'}>
                     {m.role === 'assistant' && (
                       <div className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-gray-700 flex items-center justify-center flex-shrink-0">
-                        <Image src="/logo.png" alt="Logo" width={24} height={24} className="w-4 h-4 md:w-6 md:h-6" />
+                        <BotIcon className="w-4 h-4 md:w-5 md:h-5 text-gray-300" />
                       </div>
                     )}
                     <div className={`flex-1 ${m.role === 'user' ? 'flex justify-end' : ''}`}>
