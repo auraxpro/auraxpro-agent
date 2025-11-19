@@ -149,6 +149,16 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
+      <head>
+        <link rel="icon" href="/logo.png" />
+        <link rel="apple-touch-icon" href="/logo.png" />
+        <link rel="icon" type="image/png" href="/logo.png" />
+        <link rel="icon" type="image/svg+xml" href="/logo.png" />
+        <link rel="icon" type="image/x-icon" href="/logo.png" />
+        <link rel="icon" type="image/webp" href="/logo.png" />
+        <link rel="icon" type="image/avif" href="/logo.png" />
+        <link rel="icon" type="image/png" href="/logo.png" />
+      </head>
       <body>
         <StructuredData data={structuredData} />
         {children}

@@ -57,13 +57,20 @@ export default function Chat() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
   const [conversations, setConversations] = useState<ConversationListItem[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Close sidebar on mobile when a conversation is selected
+  const handleMobileSidebarClose = () => {
+    if (window.innerWidth < 768) {
+      setSidebarOpen(false);
+    }
+  };
 
   // Initialize: Load KB, projects, and run migration
   useEffect(() => {
@@ -96,6 +103,28 @@ export default function Chat() {
       // Load conversations list
       await refreshConversations();
     })();
+  }, []);
+
+  // Set initial sidebar state based on screen size
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth >= 768) {
+        setSidebarOpen(true);
+      } else {
+        setSidebarOpen(false);
+      }
+    };
+
+    // Set initial state - check if we're on desktop
+    if (typeof window !== 'undefined') {
+      if (window.innerWidth >= 768) {
+        setSidebarOpen(true);
+      }
+    }
+
+    // Listen for resize events
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
   }, []);
 
   // Load messages when conversationId changes
@@ -151,6 +180,7 @@ export default function Chat() {
     const existingMessages = await loadConversation(conversationId);
     setMessages(existingMessages);
     await refreshConversations();
+    handleMobileSidebarClose();
     
     // If this is a new conversation (no existing messages), auto-start with initial message
     if (existingMessages.length === 0) {
@@ -279,6 +309,7 @@ export default function Chat() {
     }
     const existingMessages = await loadConversation(conversationId);
     setMessages(existingMessages);
+    handleMobileSidebarClose();
   };
 
   const handleDeleteConversation = async (conversationId: string, e: React.MouseEvent) => {
@@ -574,14 +605,30 @@ AI Context Note: ${project.ai_context_note || 'N/A'}
 
   return (
     <div className="flex h-screen bg-[#171717] text-white overflow-hidden">
-      {/* Sidebar */}
+      {/* Mobile backdrop overlay */}
       {sidebarOpen && (
-        <aside className="relative w-64 bg-[#212121] border-r border-gray-700 flex flex-col flex-shrink-0" aria-label="Navigation sidebar">
+        <div
+          className="fixed inset-0 bg-black/50 z-40 md:hidden"
+          onClick={() => setSidebarOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
+      {/* Sidebar */}
+      <aside
+        className={`fixed md:relative inset-y-0 left-0 z-50 md:z-auto w-full md:w-64 bg-[#212121] border-r border-gray-700 flex flex-col flex-shrink-0 transform transition-transform duration-300 ease-in-out ${
+          sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0 -left-64'
+        }`}
+        aria-label="Navigation sidebar"
+      >
           {/* New Chat Button */}
-          <div className="p-3 border-b border-gray-700">
+          <div className="p-2 md:p-3 border-b border-gray-700">
             <button
-              onClick={startNewChat}
-              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg bg-transparent hover:bg-gray-800 transition-colors text-sm font-medium"
+              onClick={() => {
+                startNewChat();
+                handleMobileSidebarClose();
+              }}
+              className="w-full flex items-center gap-2 md:gap-3 px-3 py-2 md:py-2.5 rounded-lg bg-transparent hover:bg-gray-800 active:bg-gray-800 transition-colors text-sm font-medium"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -591,7 +638,7 @@ AI Context Note: ${project.ai_context_note || 'N/A'}
           </div>
 
           {/* Search */}
-          <div className="p-3 border-b border-gray-700">
+          <div className="p-2 md:p-3 border-b border-gray-700">
             <div className="relative">
               <input
                 type="text"
@@ -608,7 +655,7 @@ AI Context Note: ${project.ai_context_note || 'N/A'}
           <div className="flex-1 overflow-y-auto">
             {/* Recent Projects */}
             {projects.length > 0 && (
-              <div className="p-3 border-t border-gray-700">
+              <div className="p-2 md:p-3 border-t border-gray-700">
                 <div className="flex items-center justify-between mb-2 px-2">
                   <h3 className="text-xs font-semibold text-gray-400 uppercase">Recent Projects</h3>
                 </div>
@@ -617,7 +664,7 @@ AI Context Note: ${project.ai_context_note || 'N/A'}
                     <button
                       key={project.project_id}
                       onClick={() => handleProjectSelect(project)}
-                      className={`w-full flex items-center gap-3 px-2 py-2 rounded-lg transition-colors text-sm ${
+                      className={`w-full flex items-center gap-2 md:gap-3 px-2 py-2 rounded-lg transition-colors text-sm active:bg-gray-800 ${
                         selectedProject?.project_id === project.project_id
                           ? 'bg-gray-800 text-white'
                           : 'text-gray-300 hover:bg-gray-800'
@@ -640,7 +687,7 @@ AI Context Note: ${project.ai_context_note || 'N/A'}
 
             {/* Recent Chats */}
             {conversations.length > 0 && (
-              <div className="p-3 border-t border-gray-700">
+              <div className="p-2 md:p-3 border-t border-gray-700">
                 <h3 className="text-xs font-semibold text-gray-400 uppercase mb-2 px-2">Conversations</h3>
                 <div className="space-y-1 max-h-96 overflow-y-auto">
                   {conversations.map((conv) => {
@@ -672,7 +719,7 @@ AI Context Note: ${project.ai_context_note || 'N/A'}
                       >
                         <button
                           onClick={() => handleConversationSelect(conv.conversationId)}
-                          className="flex-1 flex items-center gap-3 text-sm text-left min-w-0"
+                          className="flex-1 flex items-center gap-2 md:gap-3 text-sm text-left min-w-0 active:bg-transparent"
                         >
                           <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
@@ -684,7 +731,7 @@ AI Context Note: ${project.ai_context_note || 'N/A'}
                         </button>
                         <button
                           onClick={(e) => handleDeleteConversation(conv.conversationId, e)}
-                          className="opacity-0 group-hover:opacity-100 p-1 hover:bg-gray-700 rounded transition-opacity"
+                          className="opacity-0 group-hover:opacity-100 md:opacity-0 md:group-hover:opacity-100 p-1 hover:bg-gray-700 rounded transition-opacity active:opacity-100"
                           title="Delete conversation"
                         >
                           <TrashIcon className="w-3.5 h-3.5" />
@@ -696,56 +743,66 @@ AI Context Note: ${project.ai_context_note || 'N/A'}
               </div>
             )}
           </div>
+          {/* Desktop toggle button */}
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="absolute top-1/2 -translate-y-1/2 -right-3 p-1 bg-gray-800 rounded-full border border-gray-700 transition-colors cursor-pointer z-10"
+            className={`hidden md:block absolute top-1/2 -translate-y-1/2 ${sidebarOpen ? '-right-3' : '-right-8'} p-1 bg-gray-800 rounded-full border border-gray-700 transition-colors cursor-pointer z-10 hover:bg-gray-700`}
+            aria-label={sidebarOpen ? 'Close sidebar' : 'Open sidebar'}
           >
             {sidebarOpen ? <ChevronLeftIcon className="w-5 h-5" /> : <ChevronRightIcon className="w-5 h-5" />}
           </button>
+          {/* Mobile close button */}
+          <button
+            onClick={() => setSidebarOpen(false)}
+            className="md:hidden absolute top-2 right-2 p-1 cursor-pointer z-10 hover:bg-gray-700"
+            aria-label="Close sidebar"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
         </aside>
-      )}
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col bg-[#171717]">
         {/* Top Bar */}
-        <header className="border-b border-gray-700 bg-[#171717] px-4 py-3 flex items-center justify-between" role="banner">
-          <div className="flex items-center gap-3">
-            {!sidebarOpen && (
-              <button
-                onClick={() => setSidebarOpen(true)}
-                className="p-2 hover:bg-gray-800 rounded-lg transition-colors"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                </svg>
-              </button>
-            )}
+        <header className="border-b border-gray-700 bg-[#171717] px-3 md:px-4 py-2.5 md:py-3 flex items-center justify-between sticky top-0 z-30" role="banner">
+          <div className="flex items-center gap-2 md:gap-3">
+            <button
+              onClick={() => setSidebarOpen(true)}
+              className="p-2 hover:bg-gray-800 rounded-lg transition-colors md:hidden"
+              aria-label="Open sidebar"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
             <Link href="https://www.auraxpro.com" className="flex items-center gap-2">
-              <Image src="/brand.png" alt="Logo" width={128} height={51} />
+              <Image src="/brand.png" alt="Logo" width={128} height={51} className="h-8 md:h-auto w-auto" />
             </Link>
           </div>
         </header>
 
         {/* Messages Area */}
         <section className="flex-1 overflow-y-auto" aria-label="Chat messages">
-          <div className="max-w-3xl mx-auto px-4 py-8 h-full">
+          <div className="max-w-3xl mx-auto px-3 md:px-4 py-4 md:py-8 h-full">
             {messages.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-full text-center px-4">
-                <div className="mb-8 flex flex-col items-center justify-center">
-                  <Image src="/brand.png" alt="AuraXPro Logo" width={128} height={51} priority />
-                  <h1 className="text-4xl font-semibold mb-4 text-white mt-6">What are you working on?</h1>
-                  <p className="text-gray-400 mb-8">Ask anything about your project</p>
+              <div className="flex flex-col items-center justify-center h-full text-center px-2 md:px-4">
+                <div className="mb-6 md:mb-8 flex flex-col items-center justify-center">
+                  <Image src="/brand.png" alt="AuraXPro Logo" width={128} height={51} priority className="h-10 md:h-auto w-auto" />
+                  <h1 className="text-2xl md:text-4xl font-semibold mb-3 md:mb-4 text-white mt-4 md:mt-6">What are you working on?</h1>
+                  <p className="text-sm md:text-base text-gray-400 mb-6 md:mb-8">Ask anything about your project</p>
                   
                   {/* Frequently Asked Questions */}
-                  <nav className="w-full max-w-2xl mt-8" aria-label="Suggested questions">
-                    <h2 className="text-sm font-semibold text-gray-400 mb-4 uppercase tracking-wide">Suggested Questions</h2>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <nav className="w-full max-w-2xl mt-4 md:mt-8" aria-label="Suggested questions">
+                    <h2 className="text-xs md:text-sm font-semibold text-gray-400 mb-3 md:mb-4 uppercase tracking-wide">Suggested Questions</h2>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2 md:gap-3">
                       {faqQuestions.map((question, index) => (
                         <button
                           key={index}
                           onClick={() => handleFAQClick(question)}
                           disabled={loading}
-                          className="text-left px-4 py-3 rounded-lg border border-gray-700 bg-gray-800/50 hover:bg-gray-800 hover:border-gray-600 transition-all text-sm text-gray-300 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="text-left px-3 md:px-4 py-2.5 md:py-3 rounded-lg border border-gray-700 bg-gray-800/50 hover:bg-gray-800 hover:border-gray-600 transition-all text-xs md:text-sm text-gray-300 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed active:bg-gray-800"
                         >
                           {question}
                         </button>
@@ -755,16 +812,16 @@ AI Context Note: ${project.ai_context_note || 'N/A'}
                 </div>
               </div>
             ) : (
-              <div className="space-y-6" role="log" aria-live="polite" aria-label="Chat conversation">
+              <div className="space-y-4 md:space-y-6" role="log" aria-live="polite" aria-label="Chat conversation">
                 {messages.map((m, i) => (
-                  <article key={i} className={`flex gap-4 ${m.role === 'user' ? 'justify-end' : 'justify-start'}`} role={m.role === 'user' ? 'user-message' : 'assistant-message'}>
+                  <article key={i} className={`flex gap-2 md:gap-4 ${m.role === 'user' ? 'justify-end' : 'justify-start'}`} role={m.role === 'user' ? 'user-message' : 'assistant-message'}>
                     {m.role === 'assistant' && (
-                      <div className="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center flex-shrink-0">
-                        <Image src="/logo.png" alt="Logo" width={24} height={24} />
+                      <div className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-gray-700 flex items-center justify-center flex-shrink-0">
+                        <Image src="/logo.png" alt="Logo" width={24} height={24} className="w-4 h-4 md:w-6 md:h-6" />
                       </div>
                     )}
                     <div className={`flex-1 ${m.role === 'user' ? 'flex justify-end' : ''}`}>
-                      <div className={`max-w-[85%] rounded-2xl px-4 py-3 ${m.role === 'user'
+                      <div className={`max-w-[90%] md:max-w-[85%] rounded-xl md:rounded-2xl px-3 md:px-4 py-2.5 md:py-3 ${m.role === 'user'
                         ? 'bg-white text-gray-900'
                         : 'bg-gray-800 text-gray-100'
                         }`}>
@@ -793,24 +850,24 @@ AI Context Note: ${project.ai_context_note || 'N/A'}
                       </div>
                     </div>
                     {m.role === 'user' && (
-                      <div className="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center flex-shrink-0">
-                        <UserIcon className="w-5 h-5 text-gray-300" />
+                      <div className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-gray-700 flex items-center justify-center flex-shrink-0">
+                        <UserIcon className="w-4 h-4 md:w-5 md:h-5 text-gray-300" />
                       </div>
                     )}
                   </article>
                 ))}
                 {loading && (
-                  <div className="flex gap-4 justify-start" role="status" aria-live="polite" aria-label="AI is thinking">
-                    <div className="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center flex-shrink-0">
-                      <svg className="w-5 h-5 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <div className="flex gap-2 md:gap-4 justify-start" role="status" aria-live="polite" aria-label="AI is thinking">
+                    <div className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-gray-700 flex items-center justify-center flex-shrink-0">
+                      <svg className="w-4 h-4 md:w-5 md:h-5 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                       </svg>
                     </div>
-                    <div className="bg-gray-800 rounded-2xl px-4 py-3">
+                    <div className="bg-gray-800 rounded-xl md:rounded-2xl px-3 md:px-4 py-2.5 md:py-3">
                       <div className="flex gap-1">
-                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                        <div className="w-1.5 h-1.5 md:w-2 md:h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                        <div className="w-1.5 h-1.5 md:w-2 md:h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                        <div className="w-1.5 h-1.5 md:w-2 md:h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
                       </div>
                     </div>
                   </div>
@@ -822,9 +879,9 @@ AI Context Note: ${project.ai_context_note || 'N/A'}
         </section>
 
         {/* Input Area */}
-        <footer className="border-t border-gray-700 bg-[#171717] px-4 py-4" role="contentinfo">
+        <footer className="border-t border-gray-700 bg-[#171717] px-3 md:px-4 py-3 md:py-4 safe-area-inset-bottom" role="contentinfo">
           <div className="max-w-3xl mx-auto">
-            <div className="relative flex items-end gap-3 bg-gray-800 rounded-2xl border border-gray-700 hover:border-gray-600 transition-colors focus-within:border-gray-600">
+            <div className="relative flex items-end gap-2 md:gap-3 bg-gray-800 rounded-xl md:rounded-2xl border border-gray-700 hover:border-gray-600 transition-colors focus-within:border-gray-600">
               <textarea
                 ref={textareaRef}
                 value={input}
@@ -833,15 +890,15 @@ AI Context Note: ${project.ai_context_note || 'N/A'}
                 placeholder="Ask anything"
                 rows={1}
                 disabled={loading}
-                className="flex-1 resize-none border-0 focus:ring-0 focus:outline-none px-4 py-3 text-white placeholder-gray-500 bg-transparent"
+                className="flex-1 resize-none border-0 focus:ring-0 focus:outline-none px-3 md:px-4 py-2.5 md:py-3 text-sm md:text-base text-white placeholder-gray-500 bg-transparent"
                 style={{ maxHeight: '200px' }}
               />
-              <div className="flex items-center gap-2 mb-2 mr-2">
-                
+              <div className="flex items-center gap-1 md:gap-2 mb-2 md:mb-2 mr-2 md:mr-2">
                 <button
                   onClick={ask}
                   disabled={loading || !input.trim()}
-                  className="p-2 text-gray-400 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  className="p-2 text-gray-400 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors active:scale-95"
+                  aria-label="Send message"
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
