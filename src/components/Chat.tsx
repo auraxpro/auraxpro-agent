@@ -879,7 +879,7 @@ AI Context Note: ${project.ai_context_note || 'N/A'}
         </section>
 
         {/* Input Area */}
-        <footer className="border-t border-gray-700 bg-[#171717] px-3 md:px-4 py-3 md:py-4 safe-area-inset-bottom" role="contentinfo">
+        <footer className="border-t border-gray-700 bg-[#171717] px-3 md:px-4 py-3 md:py-4 safe-area-inset-bottom bottom-0 fixed md:relative w-full" role="contentinfo">
           <div className="max-w-3xl mx-auto">
             <div className="relative flex items-end gap-2 md:gap-3 bg-gray-800 rounded-xl md:rounded-2xl border border-gray-700 hover:border-gray-600 transition-colors focus-within:border-gray-600">
               <textarea
